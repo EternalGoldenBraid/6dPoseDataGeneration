@@ -1,0 +1,24 @@
+
+<robot name="gear_assembled">
+    <link name="base">
+        <inertial>
+            <origin xyz="11.59537694474633 6.297739099716258 0.008570022483030387" />
+            <mass value="11873.968793626493" />
+            <inertia ixx="597902.5841536238" ixy="18.258532090112567" 
+                     ixz="-1048.1061683550436" iyy="2233714.2140247924" 
+                     iyz="71.52737237400561" izz="2097735.9804352457" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" />
+            <geometry>
+                <mesh filename="assets/gear_assembled/gear_assembled.obj" />
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" />
+            <geometry>
+                <mesh filename="assets/gear_assembled/gear_assembled.obj" />
+            </geometry>
+        </collision>
+    </link>
+</robot>
