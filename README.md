@@ -46,7 +46,7 @@ docker run --rm --interactive \
 ```
 or for convenience I use the bash script
 ```
-simulate_robo_gears.sh
+simulate.sh
  ```
  which clears the previos outputs and generates a gif.
 
@@ -80,5 +80,6 @@ You only need to place the scene defined in the `*.glb` file into the assets dir
 # TODO
 - [] Add argparser to worker file
 - [] Figure out how to initialize object positions. Currently crashes once certain number of objects added.
+- [] Manifest files in their own dirs.
 
 Based on: https://github.com/google-research/kubric

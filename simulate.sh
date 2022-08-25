@@ -4,6 +4,9 @@ if [ $# -ne 1 ]; then
   echo "Syntax: simulate.sh <scene_name>"
 else
   scene_name=$1
+  framerate=6
+  n_frames=50
+  n_objects=6
   
   rm -f output/simulation/$scene_name/*
   
@@ -11,11 +14,11 @@ else
       --user $(id -u):$(id -g) \
       --volume "$PWD:/kubric" \
       kubricdockerhub/kubruntu \
-      python3 simulate.py; then
+      python3 simulate.py -s $scene_name --framerate $framerate --n_frames $n_frames --n_objects $n_objects ; then
       
     echo "Simulation done, creating gif"
     
-    convert -delay 1 -loop 0 output/simulation/$scene_name/rgba_*.png output/simulator.gif
+    convert -delay 1 -loop 0 output/simulation/$scene_name/rgba_*.png output/simulation/$scene_name/simulator.gif
     
     firefox output/simulation/$scene_name/simulator.gif
     exit 0
