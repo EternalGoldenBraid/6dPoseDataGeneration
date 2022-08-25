@@ -42,7 +42,7 @@ docker run --rm --interactive \
     --user $(id -u):$(id -g) \
     --volume "$PWD:/kubric" \
     kubricdockerhub/kubruntu \
-    python3 simulate_robo_gears.py 
+    python3 simulate.py 
 ```
 or for convenience I use the bash script
 ```
@@ -74,7 +74,7 @@ You only need to place the scene defined in the `*.glb` file into the assets dir
 │   │   └── * simulator.blend
 │   └── * simulator.gif
 ├── * robo_gears.json
-├── simulate_robo_gears.py
+├── simulate.py
 ```
 
 # TODO
