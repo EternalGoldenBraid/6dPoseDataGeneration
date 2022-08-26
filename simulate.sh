@@ -5,7 +5,8 @@ if [ $# -ne 1 ]; then
 else
   scene_name=$1
   framerate=6
-  n_frames=50
+  #n_frames=60
+  n_frames=2
   n_objects=6
   
   rm -f output/simulation/$scene_name/*
@@ -13,6 +14,8 @@ else
   if docker run --rm --interactive \
       --user $(id -u):$(id -g) \
       --volume "$PWD:/kubric" \
+      --gpus all \
+      --env KUBRIC_USE_GPU=1 \
       kubricdockerhub/kubruntu \
       python3 simulate.py -s $scene_name --framerate $framerate --n_frames $n_frames --n_objects $n_objects ; then
       
