@@ -82,4 +82,4 @@ You only need to place the scene defined in the `*.glb` file into the assets dir
 - [] Figure out how to initialize object positions. Currently crashes once certain number of objects added.
 - [] Manifest files in their own dirs.
 
-Based on: https://github.com/google-research/kubric
+Based on: https://github.com/google-research/kubricdocker run --rm -it --volume /home/nicklas/Projects/6dPoseDataGeneration:/kubric kubricdockerhub/kubruntu

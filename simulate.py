@@ -66,7 +66,7 @@ scene += kb.Cube(name="floor", scale=(floor_x, floor_y, floor_z), position=(0, 0
 scene += kb.DirectionalLight(name="sun", position=(50, 50, 30),
                              look_at=(0, 0, 0), intensity=1.5)
 #scene.camera = kb.PerspectiveCamera(name="camera", position=(200, 100, 50),
-scene.camera = kb.PerspectiveCamera(name="camera", position=(0.3, -0.3, 0.1),
+scene.camera = kb.PerspectiveCamera(name="camera", position=(0.3, -0.3, 0.3),
                                     look_at=(0, 0, 0),
                                     #focal_length=5., sensor_width=8,
                                     )
@@ -121,9 +121,10 @@ for i in range(n_objects):
 
 # --- executes the simulation (and store keyframes)
 collisions, animation = simulator.run()
-print("n_keys:", len(list(collisions.keys())))
-print(list(collisions.keys()))
-print(collisions[list(collisions.keys())[0]])
+
+#print("n_keys:", len(list(collisions.keys())))
+#print(list(collisions.keys()))
+#print(collisions[list(collisions.keys())[0]])
 #import pdb; pdb.set_trace()
 
 # --- renders the output
@@ -131,6 +132,8 @@ from pathlib import Path
 output_path = Path("output","simulation",scene_name)
 output_path.mkdir(exist_ok=True, parents=True)
 renderer.save_state(str(output_path/"simulator.blend"))
+
+# frames_dict['segmentation'] -> (n_frames, img_shape, 1)
 frames_dict = renderer.render()
 
 # --- Visibility?
@@ -145,6 +148,11 @@ visible_foreground_assets = sorted(  # sort assets by their visibility
 
 kb.write_image_dict(frames_dict, str(output_path))
 
+# --- Reindex segmentation maps for bbox computation
+frames_dict["segmentation"] = kb.adjust_segmentation_idxs(
+            frames_dict["segmentation"], scene.assets, visible_foreground_assets)
+scene.metadata["num_instances"] = len(visible_foreground_assets) 
+
 # --- Bounding boxes
 kb.post_processing.compute_bboxes(frames_dict["segmentation"],
         visible_foreground_assets)
@@ -158,9 +166,9 @@ kb.write_json(filename=output_path / "metadata.json", data={
     "camera": kb.get_camera_info(scene.camera),
     "instances": kb.get_instance_info(scene, visible_foreground_assets),
 })
-kb.write_json(filename=output_path / "events.json", data={
-    "collisions":  kb.process_collisions(
-        collisions, scene, assets_subset=visible_foreground_assets),
-})
+#kb.write_json(filename=output_path / "events.json", data={
+#    "collisions":  kb.process_collisions(
+#        collisions, scene, assets_subset=visible_foreground_assets),
+#})
 
 kb.done()
