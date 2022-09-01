@@ -1,0 +1,67 @@
+import os
+import numpy as np
+import copy
+import threading
+
+def extract_frame_data(instance, frame_range: range):
+
+    info = copy.copy(instance.metadata)
+    #n_dtypes = len(instance)
+    n_dtypes = 3
+    data = np.array([n_dtypes ,len(frame_range)], dtype=object)
+    if hasattr(isntance, "asset_id"):
+        data[0:,] = info["quaternions"]
+        data[1:,] = info["position"]
+        data[2:,] = info["asset_id"]
+
+    return data
+
+
+# --- Output BOP style
+def get_instance_info(scene, assets_subset=None):
+    """
+    Scene defined here to be a sequence of frames.
+    """
+    frame_range = range(scene.frame_start, scene.frame_end+1)
+    object_gt_info = {
+            "bbox_obj": None, # List of bbox
+            "bbox_visib": None, # List of bbox
+            "px_count_all": None, # int
+            "px_count_valid": None, # int
+            "px_count_visib": None, # int
+            "visib_fract": None # float
+            }
+
+    object_gt = {"cam_R_m2c": "rotation", "cam_t_m2c": "translation", "obj_id": 1}
+
+    scene_gt_info: list[dict] = [None]*len(frame_range)
+
+    # extract the framewise position, quaternion, and velocity for each object
+    assets_subset = scene.foreground_assets if assets_subset is None else assets_subset
+
+    breakpoint()
+    extract_frame_data(instances[0]=assets_subset, frame_range=frame_range)
+
+
+    for instance in assets_subset:
+         info = copy.copy(instance.metadata)
+         if hasattr(instance, "asset_id"):
+             info["asset_id"] = instance.asset_id
+             info["positions"] = instance.get_values_over_time("position")
+             info["quaternions"] = instance.get_values_over_time("quaternion")
+             info["velocities"] = instance.get_values_over_time("velocity")
+             info["angular_velocities"] = instance.get_values_over_time("angular_velocity")
+             info["mass"] = instance.mass
+             info["friction"] = instance.friction
+             info["restitution"] = instance.restitution
+             info["image_positions"] = np.array([scene.camera.project_point(point3d=p, frame=f)[:2]
+                     for f, p in zip(frame_range, info["positions"])], dtype=np.float32)
+             bboxes3d = []
+             for frame in frame_range:
+                 with instance.at_frame(frame):
+                     bboxes3d.append(instance.bbox_3d)
+                 info["bboxes_3d"] = np.stack(bboxes3d)
+                 instance_info.append(info)
+    return instance_info
+
+
