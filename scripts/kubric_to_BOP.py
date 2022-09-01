@@ -42,16 +42,11 @@ def extract_frame_data(instance, frame_range: range,
 
     info = copy.copy(instance.metadata)
     assert len(info['bboxes']) == len(frame_range)
-    #n_dtypes = len(instance)
-    #n_dtypes = 3
-    #data = np.empty([len(frame_range), n_dtypes], dtype=object)
-    #breakpoint()
 
     gt_frames_data = []
     gt_info_frames_data = []
     w = image_shape[0]
     h = image_shape[1]
-
 
     for frame_idx, frame in enumerate(frame_range):
         if hasattr(instance, "asset_id"):
@@ -65,7 +60,6 @@ def extract_frame_data(instance, frame_range: range,
                         #        for f, p in zip(frame_range, info["positions"])], dtype=np.float32),
                         }
 
-            # bbox ((y_min, x_min, y_max, x_max)) 
             # Scale bounding boxes to image scale if found.
             y_min, x_min, y_max, x_max = info['bboxes'][frame_idx]
             if y_min == -1 and x_min == -1 and y_max == -1 and x_max == -1:
