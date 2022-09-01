@@ -1,3 +1,5 @@
+import os
+import sys
 import logging
 import numpy as np
 import kubric as kb
@@ -37,9 +39,8 @@ logging.basicConfig(level="INFO")  # < CRITICAL, ERROR, WARNING, INFO, DEBUG
 rng = np.random.default_rng()
 # --- create scene and attach a renderer and simulator
 #scene = kb.Scene(resolution=(640, 480))
-scene = kb.Scene(resolution=(480, 640))
 #scene = kb.Scene(resolution=(256, 256))
-#scene = kb.Scene(resolution=(64, 64))
+scene = kb.Scene(resolution=(64, 64))
 
 scene.frame_end = args.n_frames   # < numbers of frames to render
 #scene.frame_end = 60   # < numbers of frames to render
@@ -66,12 +67,10 @@ scene += kb.Cube(name="floor", scale=(floor_x, floor_y, floor_z), position=(0, 0
 scene += kb.DirectionalLight(name="sun", position=(50, 50, 30),
                              look_at=(0, 0, 0), intensity=1.5)
 #scene.camera = kb.PerspectiveCamera(name="camera", position=(200, 100, 50),
-scene.camera = kb.PerspectiveCamera(name="camera", position=(0.3, -0.3, 0.3),
+scene.camera = kb.PerspectiveCamera(name="camera", position=(0.4, -0.3, 0.3),
                                     look_at=(0, 0, 0),
                                     #focal_length=5., sensor_width=8,
                                     )
-#import pdb; pdb.set_trace()
-
 # --- background 
 import bpy
 kubasic = kb.AssetSource.from_manifest(args.kubasic_assets)
@@ -80,6 +79,7 @@ backgrounds = list(hdri_source._assets.keys())
 #
 hdri_id = rng.choice(backgrounds)
 background_hdri = hdri_source.create(asset_id=hdri_id)
+background_name = background_hdri.filename.split(".")[0].split("/")[-2]
 ##background_hdri_filename = "assets/backgrounds/provence_studio_4k.exr"
 #
 # Add Dome object
@@ -112,9 +112,6 @@ for i in range(n_objects):
             scale=np.array([1/1000, 1/1000, 1/1000])
             )
 
-    print(new_obj.velocity)
-
-
     scene += new_obj
     kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
     
@@ -129,12 +126,28 @@ collisions, animation = simulator.run()
 
 # --- renders the output
 from pathlib import Path
-output_path = Path("output","simulation",scene_name)
+import scripts.kubric_to_BOP as kb_to_bop
+scene_path = Path("output","simulation",scene_name)
+existing_file_idx = np.array(list(map(int,os.listdir(scene_path))))
+if len(existing_file_idx) == 0:
+    next_data_name = "0"
+else:
+    next_data_name = f"{existing_file_idx.max()+1:06d}"
+
+output_path = scene_path / next_data_name
 output_path.mkdir(exist_ok=True, parents=True)
 renderer.save_state(str(output_path/"simulator.blend"))
 
 # frames_dict['segmentation'] -> (n_frames, img_shape, 1)
-frames_dict = renderer.render()
+frames_dict = renderer.render( return_layers = (
+    "rgb", 
+    #"backward_flow",
+    #"forward_flow",
+    "depth",
+    "normal",
+    "object_coordinates",
+    "segmentation"),
+    )
 
 # --- Visibility?
 kb.compute_visibility(frames_dict["segmentation"], scene.assets)
@@ -146,7 +159,8 @@ visible_foreground_assets = sorted(  # sort assets by their visibility
     key=lambda asset: np.sum(asset.metadata["visibility"]),
     reverse=True)
 
-kb.write_image_dict(frames_dict, str(output_path))
+#kb.write_image_dict(frames_dict, str(output_path))
+kb_to_bop.write_image_dict_bop(frames_dict, str(output_path))
 
 # --- Reindex segmentation maps for bbox computation
 frames_dict["segmentation"] = kb.adjust_segmentation_idxs(
@@ -154,9 +168,33 @@ frames_dict["segmentation"] = kb.adjust_segmentation_idxs(
 scene.metadata["num_instances"] = len(visible_foreground_assets) 
 
 # --- Bounding boxes
-kb.post_processing.compute_bboxes(frames_dict["segmentation"],
+#kb.post_processing.compute_bboxes(frames_dict["segmentation"],
+kb_to_bop.compute_bboxes(frames_dict["segmentation"],
         visible_foreground_assets)
 
+#np.save(output_path/'data_masks', frames_dict['segmentation'])
+
+# --- Output BOP style
+to_BOP = True
+if to_BOP:
+    import json
+    gt, gt_info = kb_to_bop.get_BOP_info(scene=scene, assets_subset=visible_foreground_assets)
+    with open(output_path/"scene_gt.json", 'w') as f:
+        json.dump(gt, f, indent=4)
+    with open(output_path/"scene_gt_info.json", 'w') as f:
+        json.dump(gt_info, f, indent=4)
+    
+    cam_info = kb.get_camera_info(scene.camera)
+    scene_camera = {}
+    depth_scale = 1.0 # TODO Where is this?
+    for frame in list(gt.keys()):
+        scene_camera[frame] = {'cam_K': cam_info['K'].tolist(), 'depth_scale': depth_scale}
+
+    with open(output_path/'scene_camera.json', 'w') as f:
+        json.dump(scene_camera, f, indent=4)
+    
+    #kb.write_json(filename=output_path / "camera.json", 
+    #    data=kb_to_bop.camera_to_dense(cam_info['K']))
 
 # --- Metadata
 logging.info("Collecting and storing metadata for each object.")
@@ -170,5 +208,8 @@ kb.write_json(filename=output_path / "metadata.json", data={
 #    "collisions":  kb.process_collisions(
 #        collisions, scene, assets_subset=visible_foreground_assets),
 #})
+
+#print >> sys.stderr, str("Saved outputs to:", output_path)
+print(background_name)
 
 kb.done()
