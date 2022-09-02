@@ -10,6 +10,14 @@ from utils.utils import sample_point_in_half_sphere_shell
 
 import argparse
 
+INDOOR_BGS = [ 
+"abandoned_workshop_02", "photo_studio_loft_hall",
+"cayley_interior", "peppermint_powerplant_2", "pump_house",
+"artist_workshop", "fireplace", "peppermint_powerplant",
+"vintage_measuring_lab", "carpentry_shop_02", "glass_passage"
+]
+
+
 parser = argparse.ArgumentParser(prog='demo',
         description='Simulate.')
 
@@ -23,6 +31,8 @@ parser.add_argument('--n_frames', dest='n_frames', default=3,
                     type=int, help='Number of objects to render from scene')
 parser.add_argument('--size', dest='img_size', default='640',
                     type=str, help='')
+parser.add_argument('--scale', dest='obj_scale', default=1.,
+                    type=float, help='Scale of objects ing glb file.')
 
 # Camera params
 parser.add_argument("--camera", choices=["fixed_random", "linear_movement"],
@@ -35,6 +45,7 @@ parser.add_argument("--kubasic_assets", type=str,
                     default="gs://kubric-public/assets/KuBasic/KuBasic.json")
 parser.add_argument("--hdri_assets", type=str,
                     default="gs://kubric-public/assets/HDRI_haven/HDRI_haven.json")
+
 
 args = parser.parse_args()
 
@@ -60,38 +71,64 @@ scene.step_rate = 100*args.framerate  # < simulation framerate
 if args.max_motion_blur != 0.0:
     motion_blur = rng.uniform(0, args.max_motion_blur)
 
-renderer = KubricBlender(scene, motion_blur=motion_blur)
+renderer = KubricBlender(scene,
+        motion_blur=motion_blur,
+        use_denoising=True,
+        adaptive_sampling=True,
+        background_transparency=False,
+        )
 simulator = KubricSimulator(scene)
 
 # --- background 
 import bpy
 kubasic = kb.AssetSource.from_manifest(args.kubasic_assets)
+
 hdri_source = kb.AssetSource.from_manifest(args.hdri_assets)
+
 backgrounds = list(hdri_source._assets.keys())
-#
-hdri_id = rng.choice(backgrounds)
+hdri_id = rng.choice(INDOOR_BGS)
+
+use_indoor = True
+if use_indoor:
+    while hdri_id not in backgrounds:
+        hdri_id = rng.choice(INDOOR_BGS)
+else:
+    hdri_id = rng.choice(backgrounds)
+
 background_hdri = hdri_source.create(asset_id=hdri_id)
 background_name = background_hdri.filename.split(".")[0].split("/")[-2]
 ##background_hdri_filename = "assets/backgrounds/provence_studio_4k.exr"
-#
+ 
 # Add Dome object
 dome = kubasic.create(asset_id="dome", name="dome", static=True, background=True,
         scale=0.1)
 scene += dome
+dome.scale = 0.1
+
 ## Set the texture 
 dome_blender = dome.linked_objects[renderer]
 texture_node = dome_blender.data.materials[0].node_tree.nodes["Image Texture"]
 texture_node.image = bpy.data.images.load(background_hdri.filename)
 
+##hdri_source = kb.TextureSource('hdri_assets')
+#hdri_source = kb.AssetSource('hdri_assets')
+#breakpoint()
+#backgrounds = list(hdri_source._assets.keys())
+#dome = kb.assets.utils.add_hdri_dome(hdri_source, scene, None)
+
+
 # --- populate the scene with objects, lights, cameras
-floor_x = 0.2
-floor_y = 0.2
+#floor_x = 0.2
+#floor_y = 0.2
+floor_x = args.obj_scale*200
+floor_y = args.obj_scale*200
 floor_z = 0.1
-#scene += kb.Cube(name="floor", scale=(30, 30, 0.1), position=(0, 0, -1.),
-#scene += kb.Cube(name="floor", scale=(100, 100, 0.1), position=(0, 0, -1.),
 color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
-scene += kb.Cube(name="floor", scale=(floor_x, floor_y, floor_z), position=(0, 0, floor_z),
-                 static=True, material=kb.PrincipledBSDFMaterial(color=random_color))
+floor_material = kb.PrincipledBSDFMaterial( 
+        color=random_color, metallic=1.0, roughness=0.2, ior=2.5)
+scene += kb.Cube(name="floor", static=True, 
+        scale=(floor_x, floor_y, floor_z), position=(0, 0, floor_z), 
+        material=floor_material)
 #scene += kb.DirectionalLight(name="sun", position=(50, 50, 30),
 #                             look_at=(0, 0, 0), intensity=1.5)
 renderer._set_ambient_light_hdri(background_hdri.filename)
@@ -106,7 +143,7 @@ cam_lowest_z = floor_z+0.2
 for frame in range(1, args.n_frames + 1):
     # scene.camera.position = (1, 1, 1)  #< frozen camera
     pos = sample_point_in_half_sphere_shell(
-        inner_radius=0.1, outer_radius=0.4, rng=rng) # meters
+        inner_radius=0.1, outer_radius=0.6, rng=rng) # meters
     pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
     scene.camera.position = pos
     scene.camera.look_at((0, 0, 0))
@@ -124,17 +161,14 @@ n_objects = args.n_objects
 #spawn_region = [[0, 0, 0], [floor_x, floor_y, 1]]
 spawn_region = [[0, 0, floor_z+0.01], [0.1, 0.1, floor_z+0.2]]
 #spawn_region = [[0, 0, 0], [1, 1, 1]]
-material_name = rng.choice(["metal", "rubber", "other"])
+material_name = rng.choice(["metal", "rubber", "plastic", "other"])
 for i in range(n_objects):
     #velocity = rng.uniform([-1, -1, 0], [1, 1, 0])
     new_obj = obj_source.create(asset_id=asset_names[rng.integers(0,len(asset_names))],
-            #material=material,
             #velocity=velocity,
-            scale=np.array([1/1000, 1/1000, 1/1000])
+            scale=np.ones(3)*args.obj_scale
             )
     obj_scale = np.linalg.norm(new_obj.aabbox[1] - new_obj.aabbox[0])
-    print(obj_scale)
-    continue
     color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
     size_label, size = kb.randomness.sample_sizes("uniform", rng)
 
@@ -151,14 +185,24 @@ for i in range(n_objects):
         new_obj.friction = 0.8
         new_obj.restitution = 0.7
         new_obj.mass *= 1.1 * size**3
-    else: 
+    elif material_name == "plastic": 
+        new_obj.material= kb.PrincipledBSDFMaterial(color=kb.random_hue_color(rng=rng))
+        new_obj.friction = 0.8
+        new_obj.restitution = 0.7
+        new_obj.mass *= 1.1 * size**3
+    else:
         #new_obj.material= kb.PrincipledBSDFMaterial(color=kb.random_hue_color(rng=rng))
-        new_obj.material= kb.PrincipledBSDFMaterial(color=random_color)
+        new_obj.material = kb.FlatMaterial(color=random_color, 
+                holdout=True, 
+                #indirect_visibility=True
+                )
+        new_obj.friction = 0.8
+        new_obj.restitution = 0.7
+        new_obj.mass *= 1.1 * size**3
 
     scene += new_obj
     kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
     
-breakpoint()
 
 # --- executes the simulation (and store keyframes)
 collisions, animation = simulator.run()
@@ -172,6 +216,7 @@ collisions, animation = simulator.run()
 from pathlib import Path
 import scripts.kubric_to_BOP as kb_to_bop
 scene_path = Path("output","simulation",scene_name)
+scene_path.mkdir(exist_ok=True, parents=True)
 existing_file_idx = np.array(list(map(int,os.listdir(scene_path))))
 if len(existing_file_idx) == 0:
     next_data_name = f"{0:05d}"
