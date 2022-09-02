@@ -19,4 +19,5 @@ def sample_point_in_half_sphere_shell(
       cam_dir = v[:2] / np.linalg.norm(v[:2])
       correct_angle = np.all(np.dot(distractor_dir, cam_dir) < np.cos(np.pi / 9.))
     if inner_radius <= len_v <= outer_radius and correct_angle:
-      return tuple(v) 
+      #return tuple(v) 
+      return v

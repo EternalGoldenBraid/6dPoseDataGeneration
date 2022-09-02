@@ -5,13 +5,13 @@ else
   scene_name=$1
 
   framerate=20
-  n_frames=3
+  n_frames=8
   n_objects=2
-  img_size=64
+  img_size=640
 
   #framerate=30
-  #n_frames=30
-  #n_objects=2
+  #n_frames=10
+  #n_objects=5
   #img_size=640
   
   #rm -fr output/simulation/$scene_name/*

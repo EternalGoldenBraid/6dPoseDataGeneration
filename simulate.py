@@ -28,7 +28,7 @@ parser.add_argument('--size', dest='img_size', default='640',
 parser.add_argument("--camera", choices=["fixed_random", "linear_movement"],
                     default="fixed_random")
 parser.add_argument("--max_camera_movement", type=float, default=0.0)
-parser.add_argument("--max_motion_blur", type=float, default=1.0)
+parser.add_argument("--max_motion_blur", type=float, default=0.01)
 
 # Configuration for the source of the assets
 parser.add_argument("--kubasic_assets", type=str,
@@ -55,7 +55,7 @@ scene.frame_rate = args.framerate  # < rendering framerate
 
 #scene.step_rate = 240  # < simulation framerate
 #scene.step_rate = 240  # < simulation framerate
-scene.step_rate = 10*args.framerate  # < simulation framerate
+scene.step_rate = 100*args.framerate  # < simulation framerate
 
 if args.max_motion_blur != 0.0:
     motion_blur = rng.uniform(0, args.max_motion_blur)
@@ -84,13 +84,14 @@ texture_node = dome_blender.data.materials[0].node_tree.nodes["Image Texture"]
 texture_node.image = bpy.data.images.load(background_hdri.filename)
 
 # --- populate the scene with objects, lights, cameras
-floor_x = 1.0
-floor_y = 1.0
+floor_x = 0.2
+floor_y = 0.2
 floor_z = 0.1
 #scene += kb.Cube(name="floor", scale=(30, 30, 0.1), position=(0, 0, -1.),
 #scene += kb.Cube(name="floor", scale=(100, 100, 0.1), position=(0, 0, -1.),
-scene += kb.Cube(name="floor", scale=(floor_x, floor_y, floor_z), position=(0, 0, -floor_z),
-                 static=True)
+color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
+scene += kb.Cube(name="floor", scale=(floor_x, floor_y, floor_z), position=(0, 0, floor_z),
+                 static=True, material=kb.PrincipledBSDFMaterial(color=random_color))
 #scene += kb.DirectionalLight(name="sun", position=(50, 50, 30),
 #                             look_at=(0, 0, 0), intensity=1.5)
 renderer._set_ambient_light_hdri(background_hdri.filename)
@@ -101,10 +102,13 @@ scene.camera = kb.PerspectiveCamera(name='camera',
                                     )
 
 #for frame in range(0, args.n_frames):
+cam_lowest_z = floor_z+0.2
 for frame in range(1, args.n_frames + 1):
     # scene.camera.position = (1, 1, 1)  #< frozen camera
-    scene.camera.position = sample_point_in_half_sphere_shell(
-        0.1, 0.4, rng) # meters
+    pos = sample_point_in_half_sphere_shell(
+        inner_radius=0.1, outer_radius=0.4, rng=rng) # meters
+    pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
+    scene.camera.position = pos
     scene.camera.look_at((0, 0, 0))
     scene.camera.keyframe_insert("position", frame)
     scene.camera.keyframe_insert("quaternion", frame)
@@ -118,7 +122,7 @@ obj_source = kb.AssetSource.from_manifest(manifest_path=f"{scene_name}_manifest.
 asset_names = list(obj_source._assets.keys())
 n_objects = args.n_objects
 #spawn_region = [[0, 0, 0], [floor_x, floor_y, 1]]
-spawn_region = [[0, 0, 0], [0.1, 0.1, 0.1]]
+spawn_region = [[0, 0, floor_z+0.01], [0.1, 0.1, floor_z+0.2]]
 #spawn_region = [[0, 0, 0], [1, 1, 1]]
 material_name = rng.choice(["metal", "rubber", "other"])
 for i in range(n_objects):
@@ -128,6 +132,9 @@ for i in range(n_objects):
             #velocity=velocity,
             scale=np.array([1/1000, 1/1000, 1/1000])
             )
+    obj_scale = np.linalg.norm(new_obj.aabbox[1] - new_obj.aabbox[0])
+    print(obj_scale)
+    continue
     color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
     size_label, size = kb.randomness.sample_sizes("uniform", rng)
 
@@ -151,6 +158,7 @@ for i in range(n_objects):
     scene += new_obj
     kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
     
+breakpoint()
 
 # --- executes the simulation (and store keyframes)
 collisions, animation = simulator.run()
