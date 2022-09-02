@@ -5,9 +5,9 @@ else
   scene_name=$1
 
   framerate=20
-  n_frames=2
-  n_objects=8
-  img_size=640
+  n_frames=3
+  n_objects=2
+  img_size=64
 
   #framerate=30
   #n_frames=30

@@ -6,6 +6,8 @@ import kubric as kb
 from kubric.renderer.blender import Blender as KubricBlender
 from kubric.simulator.pybullet import PyBullet as KubricSimulator
 
+from utils.utils import sample_point_in_half_sphere_shell
+
 import argparse
 
 parser = argparse.ArgumentParser(prog='demo',
@@ -45,6 +47,7 @@ IMG_SIZE = {'640': (640,480), '256': (256,256), '64': (64, 64)}
 scene = kb.Scene(resolution=IMG_SIZE[args.img_size])
 
 scene.frame_end = args.n_frames   # < numbers of frames to render
+scene.frame_start = 1
 #scene.frame_end = 60   # < numbers of frames to render
 #scene.frame_end = 2   # < numbers of frames to render
 
@@ -54,7 +57,9 @@ scene.frame_rate = args.framerate  # < rendering framerate
 #scene.step_rate = 240  # < simulation framerate
 scene.step_rate = 10*args.framerate  # < simulation framerate
 
-motion_blur = rng.uniform(0, args.max_motion_blur)
+if args.max_motion_blur != 0.0:
+    motion_blur = rng.uniform(0, args.max_motion_blur)
+
 renderer = KubricBlender(scene, motion_blur=motion_blur)
 simulator = KubricSimulator(scene)
 
@@ -86,17 +91,25 @@ floor_z = 0.1
 #scene += kb.Cube(name="floor", scale=(100, 100, 0.1), position=(0, 0, -1.),
 scene += kb.Cube(name="floor", scale=(floor_x, floor_y, floor_z), position=(0, 0, -floor_z),
                  static=True)
-#light_spawn_region = [[0, 0, 0], [0.1, 0.1, 0.3]]
 #scene += kb.DirectionalLight(name="sun", position=(50, 50, 30),
 #                             look_at=(0, 0, 0), intensity=1.5)
 renderer._set_ambient_light_hdri(background_hdri.filename)
-#scene.camera = kb.PerspectiveCamera(name="camera", position=(200, 100, 50),
-scene.camera = kb.PerspectiveCamera(name="camera", position=(0.4, -0.3, 0.3),
-                                    look_at=(0, 0, 0),
-                                    #focal_length=5., sensor_width=8,
+
+# --- Keyframe the camera
+scene.camera = kb.PerspectiveCamera(name='camera',
+            #focal_length=5., sensor_width=8,
                                     )
 
-# --- generates spheres randomly within a spawn region
+#for frame in range(0, args.n_frames):
+for frame in range(1, args.n_frames + 1):
+    # scene.camera.position = (1, 1, 1)  #< frozen camera
+    scene.camera.position = sample_point_in_half_sphere_shell(
+        0.1, 0.4, rng) # meters
+    scene.camera.look_at((0, 0, 0))
+    scene.camera.keyframe_insert("position", frame)
+    scene.camera.keyframe_insert("quaternion", frame)
+
+# --- generates objects randomly within a spawn region
 #scene_name = "engine_parts"
 scene_name = "robo_gears"
 scene_name = args.scene_name

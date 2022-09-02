@@ -49,35 +49,35 @@ def extract_frame_data(instance, frame_range: range,
     h = image_shape[1]
 
     for frame_idx, frame in enumerate(frame_range):
-        if hasattr(instance, "asset_id"):
-            with instance.at_frame(frame):
-                R = tritrans.quaternion_matrix(instance.quaternion)[:3,:3].tolist()
-                object_gt = {
-                        "cam_R_m2c": R,
-                        "cam_t_m2c": instance.position.tolist(),
-                        "obj_id": instance.asset_id,
-                        #"image_positions": np.array([scene.camera.project_point(point3d=p, frame=f)[:2]
-                        #        for f, p in zip(frame_range, info["positions"])], dtype=np.float32),
-                        }
-
-            # Scale bounding boxes to image scale if found.
-            y_min, x_min, y_max, x_max = info['bboxes'][frame_idx]
-            if y_min == -1 and x_min == -1 and y_max == -1 and x_max == -1:
-                bb = [-1, -1, -1, -1]
-            else:
-                bb = [y_min*h, x_min*w, y_max*h, x_max*w]
-                bb = list(map(int, bb))
-            
-            object_gt_info = {
-                    #"description": info['description'],
-                    #"bbox_obj": info['bboxes'], # List of bbox
-                    "bbox_visib": bb,
-                    #"bbox_obj": None, 
-                    #"px_count_all": None,
-                    #"px_count_valid": None,
-                    #"px_count_visib": None,
-                    #"visib_fract": None
+        #if hasattr(instance, "asset_id"):
+        with instance.at_frame(frame):
+            R = tritrans.quaternion_matrix(instance.quaternion)[:3,:3].tolist()
+            object_gt = {
+                    "cam_R_m2c": R,
+                    "cam_t_m2c": instance.position.tolist(),
+                    "obj_id": instance.asset_id,
+                    #"image_positions": np.array([scene.camera.project_point(point3d=p, frame=f)[:2]
+                    #        for f, p in zip(frame_range, info["positions"])], dtype=np.float32),
                     }
+
+        # Scale bounding boxes to image scale if found.
+        y_min, x_min, y_max, x_max = info['bboxes'][frame_idx]
+        if y_min == -1 and x_min == -1 and y_max == -1 and x_max == -1:
+            bb = [-1, -1, -1, -1]
+        else:
+            bb = [y_min*h, x_min*w, y_max*h, x_max*w]
+            bb = list(map(int, bb))
+        
+        object_gt_info = {
+                #"description": info['description'],
+                #"bbox_obj": info['bboxes'], # List of bbox
+                "bbox_visib": bb,
+                #"bbox_obj": None, 
+                #"px_count_all": None,
+                #"px_count_valid": None,
+                #"px_count_visib": None,
+                #"visib_fract": None
+                }
         gt_frames_data.append(object_gt)
         gt_info_frames_data.append(object_gt_info)
 
@@ -99,7 +99,12 @@ def get_BOP_info(scene, assets_subset=None):
     assets_subset = scene.foreground_assets if assets_subset is None else assets_subset
 
     from itertools import starmap
-    fun = lambda i, f=frame_range: extract_frame_data(instance=i,frame_range=f)
+    #fun = lambda i, f=frame_range: extract_frame_data(instance=i,frame_range=f)
+    def fun(instance, frame_range=frame_range):
+        if hasattr(instance, 'asset_id'):
+            data = extract_frame_data(instance=instance,frame_range=frame_range)
+            return data
+
     data = list(map(fun, assets_subset))
     n_objects = len(data)
 
@@ -110,6 +115,10 @@ def get_BOP_info(scene, assets_subset=None):
         #gt_info[frame] = np.empty(n_objects,dtype=object)
         gt_info[frame] = [None]*n_objects
         for instance_idx, instance_data in enumerate(data):
+
+            # Skip instances with no <'asset_id'>. i.e. static background/distractions objects.
+            if instance_data == None:
+                continue
             gt_frames_data, gt_info_frames_data = instance_data
             gt[frame][instance_idx] = gt_frames_data[frame_idx]
             gt_info[frame][instance_idx] = gt_info_frames_data[frame_idx]
