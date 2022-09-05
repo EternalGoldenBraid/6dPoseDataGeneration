@@ -38,7 +38,7 @@ parser.add_argument('--scale', dest='obj_scale', default=1.,
 parser.add_argument("--camera", choices=["fixed_random", "linear_movement"],
                     default="fixed_random")
 parser.add_argument("--max_camera_movement", type=float, default=0.0)
-parser.add_argument("--max_motion_blur", type=float, default=0.01)
+parser.add_argument("--max_motion_blur", type=float, default=0.1)
 
 # Configuration for the source of the assets
 parser.add_argument("--kubasic_assets", type=str,
@@ -52,9 +52,11 @@ args = parser.parse_args()
 logging.basicConfig(level="INFO")  # < CRITICAL, ERROR, WARNING, INFO, DEBUG
 
 rng = np.random.default_rng()
+compute_specular = lambda ior: ((ior - 1)/(ior + 1))**2/0.08
+IMG_SIZE = {'640': (640,480), '256': (256,256), '64': (64, 64)}
+
 # --- create scene and attach a renderer and simulator
 
-IMG_SIZE = {'640': (640,480), '256': (256,256), '64': (64, 64)}
 scene = kb.Scene(resolution=IMG_SIZE[args.img_size])
 
 scene.frame_end = args.n_frames   # < numbers of frames to render
@@ -70,6 +72,7 @@ scene.step_rate = 100*args.framerate  # < simulation framerate
 
 if args.max_motion_blur != 0.0:
     motion_blur = rng.uniform(0, args.max_motion_blur)
+    #motion_blur = 0.1
 
 renderer = KubricBlender(scene,
         motion_blur=motion_blur,
@@ -80,6 +83,7 @@ renderer = KubricBlender(scene,
 simulator = KubricSimulator(scene)
 
 # --- background 
+
 import bpy
 kubasic = kb.AssetSource.from_manifest(args.kubasic_assets)
 
@@ -120,12 +124,15 @@ texture_node.image = bpy.data.images.load(background_hdri.filename)
 # --- populate the scene with objects, lights, cameras
 #floor_x = 0.2
 #floor_y = 0.2
-floor_x = args.obj_scale*200
-floor_y = args.obj_scale*200
-floor_z = 0.1
-color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
+floor_x = args.obj_scale*20
+floor_y = args.obj_scale*20
+floor_z = 0.03
+#color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
+color_label, random_color = kb.randomness.sample_color("clevr", rng)
+ior = 1.3
 floor_material = kb.PrincipledBSDFMaterial( 
-        color=random_color, metallic=1.0, roughness=0.2, ior=2.5)
+        color=random_color, metallic=0.1, roughness=0.8, 
+        ior=ior, specular=compute_specular(ior))
 scene += kb.Cube(name="floor", static=True, 
         scale=(floor_x, floor_y, floor_z), position=(0, 0, floor_z), 
         material=floor_material)
@@ -133,22 +140,6 @@ scene += kb.Cube(name="floor", static=True,
 #                             look_at=(0, 0, 0), intensity=1.5)
 renderer._set_ambient_light_hdri(background_hdri.filename)
 
-# --- Keyframe the camera
-scene.camera = kb.PerspectiveCamera(name='camera',
-            #focal_length=5., sensor_width=8,
-                                    )
-
-#for frame in range(0, args.n_frames):
-cam_lowest_z = floor_z+0.2
-for frame in range(1, args.n_frames + 1):
-    # scene.camera.position = (1, 1, 1)  #< frozen camera
-    pos = sample_point_in_half_sphere_shell(
-        inner_radius=0.1, outer_radius=0.6, rng=rng) # meters
-    pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
-    scene.camera.position = pos
-    scene.camera.look_at((0, 0, 0))
-    scene.camera.keyframe_insert("position", frame)
-    scene.camera.keyframe_insert("quaternion", frame)
 
 # --- generates objects randomly within a spawn region
 #scene_name = "engine_parts"
@@ -159,9 +150,16 @@ obj_source = kb.AssetSource.from_manifest(manifest_path=f"{scene_name}_manifest.
 asset_names = list(obj_source._assets.keys())
 n_objects = args.n_objects
 #spawn_region = [[0, 0, 0], [floor_x, floor_y, 1]]
-spawn_region = [[0, 0, floor_z+0.01], [0.1, 0.1, floor_z+0.2]]
-#spawn_region = [[0, 0, 0], [1, 1, 1]]
-material_name = rng.choice(["metal", "rubber", "plastic", "other"])
+#spawn_region = [[0, 0, floor_z+0.01], [0.1, 0.1, floor_z+0.4]]
+spawn_region = [[0, 0, floor_z+0.01], [floor_x+0.1, floor_y+0.1, floor_z+0.4]]
+#material_name = rng.choice(["metal", "rubber", "plastic", "other"])
+material_name = rng.choice([
+    #"plastic",
+    #"metal",
+    "rubber",
+    #"other"
+    ])
+
 for i in range(n_objects):
     #velocity = rng.uniform([-1, -1, 0], [1, 1, 0])
     new_obj = obj_source.create(asset_id=asset_names[rng.integers(0,len(asset_names))],
@@ -169,24 +167,35 @@ for i in range(n_objects):
             scale=np.ones(3)*args.obj_scale
             )
     obj_scale = np.linalg.norm(new_obj.aabbox[1] - new_obj.aabbox[0])
-    color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
+    #color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
+    color_label, random_color = kb.randomness.sample_color("clevr", rng)
+    #color_label, random_color = kb.randomness.sample_color("gray", rng)
     size_label, size = kb.randomness.sample_sizes("uniform", rng)
 
     if material_name == "metal":
+        ior = 1.5
+        specular = compute_specular(ior) 
         new_obj.material = kb.PrincipledBSDFMaterial(color=random_color, metallic=1.0,
-            roughness=0.2, ior=2.5)
+            roughness=0.2, ior=ior, specular=specular)
         new_obj.friction = 0.4
         new_obj.restitution = 0.3
         new_obj.mass *= 2.7 * size**3
 
     elif material_name == "rubber":
+        ior = 1.25
+        specular = compute_specular(ior) 
         new_obj.material = kb.PrincipledBSDFMaterial(color=random_color, metallic=0.,
-            ior=1.25, roughness=0.7, specular=0.33)
+            ior=ior, roughness=0.7, 
+            #specular=0.33,
+            specular=specular,
+            )
         new_obj.friction = 0.8
         new_obj.restitution = 0.7
         new_obj.mass *= 1.1 * size**3
     elif material_name == "plastic": 
-        new_obj.material= kb.PrincipledBSDFMaterial(color=kb.random_hue_color(rng=rng))
+        #ior = 1.25
+        #specular = compute_specular(ior)
+        new_obj.material= kb.PrincipledBSDFMaterial(color=random_color)
         new_obj.friction = 0.8
         new_obj.restitution = 0.7
         new_obj.mass *= 1.1 * size**3
@@ -202,15 +211,36 @@ for i in range(n_objects):
 
     scene += new_obj
     kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
-    
 
 # --- executes the simulation (and store keyframes)
-collisions, animation = simulator.run()
+animation, collisions = simulator.run()
+obj_ids = animation.keys()
 
-#print("n_keys:", len(list(collisions.keys())))
-#print(list(collisions.keys()))
-#print(collisions[list(collisions.keys())[0]])
-#import pdb; pdb.set_trace()
+cam_pos_array = np.zeros([args.n_frames+1, 3])
+
+for obj in obj_ids:
+    if not hasattr(obj, 'asset_id'): continue
+    if obj.asset_id == 'dome': continue
+    cam_pos_array = cam_pos_array + np.array(animation[obj]["position"])
+cam_pos_array = cam_pos_array / len(obj_ids)
+
+# --- Keyframe the camera
+scene.camera = kb.PerspectiveCamera(name='camera',
+            #focal_length=5., sensor_width=8,
+                                    )
+
+#for frame in range(0, args.n_frames):
+cam_lowest_z = floor_z+0.2
+for frame in range(1, args.n_frames + 1):
+    # scene.camera.position = (1, 1, 1)  #< frozen camera
+    pos = sample_point_in_half_sphere_shell(
+        inner_radius=0.1, outer_radius=0.6, rng=rng) # meters
+    pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
+    scene.camera.position = pos
+    #breakpoint()
+    scene.camera.look_at(cam_pos_array[frame-1])
+    scene.camera.keyframe_insert("position", frame)
+    scene.camera.keyframe_insert("quaternion", frame)
 
 # --- renders the output
 from pathlib import Path
@@ -230,13 +260,13 @@ renderer.save_state(str(output_path/"simulator.blend"))
 # frames_dict['segmentation'] -> (n_frames, img_shape, 1)
 frames_dict = renderer.render( return_layers = (
     "rgb", 
+    "segmentation",
     #"backward_flow",
     #"forward_flow",
-    "depth",
-    "normal",
-    "object_coordinates",
-    "segmentation"),
-    )
+    #"depth",
+    #"normal",
+    #"object_coordinates",
+    ),)
 
 # --- Visibility?
 kb.compute_visibility(frames_dict["segmentation"], scene.assets)
@@ -292,6 +322,7 @@ kb.write_json(filename=output_path / "metadata.json", data={
     "metadata": kb.get_scene_metadata(scene),
     "camera": kb.get_camera_info(scene.camera),
     "instances": kb.get_instance_info(scene, visible_foreground_assets),
+    "background": background_name,
 })
 #kb.write_json(filename=output_path / "events.json", data={
 #    "collisions":  kb.process_collisions(
