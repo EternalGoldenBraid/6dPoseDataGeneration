@@ -4,15 +4,15 @@ if [ $# -ne 1 ]; then
 else
   scene_name=$1
 
-  #framerate=20
-  #n_frames=8
-  #n_objects=2
-  #img_size=64
-
-  framerate=30
-  n_frames=10
+  framerate=10
+  n_frames=5
   n_objects=5
   img_size=640
+
+  #framerate=30
+  #n_frames=10
+  #n_objects=5
+  #img_size=640
 
   if [ $scene_name == "robo_gears" ]; then
   	obj_scale=0.001
