@@ -31,7 +31,7 @@ def compute_bboxes(segmentation: ArrayLike, asset_list: Sequence[core.Asset]):
 
 
 
-def extract_frame_data(instance, frame_range: range, 
+def extract_frame_data(instance, frame_range: range, scene,
         image_shape: (int, int) = (640,480)):
     """
     Extract frame per frame information for an instance of an object.
@@ -50,11 +50,17 @@ def extract_frame_data(instance, frame_range: range,
 
     for frame_idx, frame in enumerate(frame_range):
         #if hasattr(instance, "asset_id"):
+        with scene.camera.at_frame(frame):
+            cam_t = scene.camera.position
+            cam_R = tritrans.quaternion_matrix(
+                    scene.camera.quaternion)[:3,:3]
         with instance.at_frame(frame):
-            R = tritrans.quaternion_matrix(instance.quaternion)[:3,:3].tolist()
+            R = tritrans.quaternion_matrix(instance.quaternion)[:3,:3]
             object_gt = {
-                    "cam_R_m2c": R,
-                    "cam_t_m2c": instance.position.tolist(),
+                    "cam_R_m2w": R.tolist(),
+                    "cam_t_m2w": instance.position.tolist(),
+                    "cam_R_m2c": (cam_R.dot(R.T)).tolist(),
+                    "cam_t_m2c": (cam_t - instance.position).tolist(),
                     "obj_id": instance.asset_id,
                     #"image_positions": np.array([scene.camera.project_point(point3d=p, frame=f)[:2]
                     #        for f, p in zip(frame_range, info["positions"])], dtype=np.float32),
@@ -83,7 +89,6 @@ def extract_frame_data(instance, frame_range: range,
 
     return gt_frames_data, gt_info_frames_data
 
-
 # --- Output BOP style
 def get_BOP_info(scene, assets_subset=None):
     """
@@ -100,9 +105,9 @@ def get_BOP_info(scene, assets_subset=None):
 
     from itertools import starmap
     #fun = lambda i, f=frame_range: extract_frame_data(instance=i,frame_range=f)
-    def fun(instance, frame_range=frame_range):
+    def fun(instance, frame_range=frame_range, scene=scene):
         if hasattr(instance, 'asset_id'):
-            data = extract_frame_data(instance=instance,frame_range=frame_range)
+            data = extract_frame_data(instance=instance,frame_range=frame_range, scene=scene)
             return data
 
     data = list(map(fun, assets_subset))

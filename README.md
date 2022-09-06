@@ -81,5 +81,7 @@ You only need to place the scene defined in the `*.glb` file into the assets dir
 - [] Add argparser to worker file
 - [] Figure out how to initialize object positions. Currently crashes once certain number of objects added.
 - [] Manifest files in their own dirs.
+- [] Fix erroneous collision geometries see 
+		https://github.com/google-research/kubric/blob/b42f616585419c73c05b7e73090da5919f398d71/kubric/assets/asset_preprocessing.py#L210
 
 Based on: https://github.com/google-research/kubricdocker run --rm -it --volume /home/nicklas/Projects/6dPoseDataGeneration:/kubric kubricdockerhub/kubruntu

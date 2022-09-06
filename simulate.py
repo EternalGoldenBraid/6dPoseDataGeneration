@@ -15,10 +15,17 @@ from utils.utils import sample_point_in_half_sphere_shell
 import argparse
 
 INDOOR_BGS = [ 
-"abandoned_workshop_02", "photo_studio_loft_hall",
-"cayley_interior", "peppermint_powerplant_2", "pump_house",
-"artist_workshop", "fireplace", "peppermint_powerplant",
-"vintage_measuring_lab", "carpentry_shop_02", "glass_passage"
+#abandoned_workshop_02",
+#photo_studio_loft_hall",
+#cayley_interior",
+#peppermint_powerplant_2",
+#pump_house",
+#"artist_workshop",
+#"fireplace",
+#"peppermint_powerplant",
+"vintage_measuring_lab",
+#"carpentry_shop_02",
+#"glass_passage"
 ]
 
 
@@ -31,18 +38,23 @@ def get_simulator_renderer(args, rng,
 
     # --- create scene and attach a renderer and simulator
     
-    scene = kb.Scene(resolution=IMG_SIZE[args.img_size])
+    frame_rate = int(args.n_frames/args.simulation_time)# < rendering framerate
     
-    scene.frame_end = args.n_frames   # < numbers of frames to render
-    scene.frame_start = 1
-    scene.frame_rate = args.framerate  # < rendering framerate
+    #scene.frame_end = args.n_frames   # < numbers of frames to render
+    #scene.frame_start = 0
+    ##scene.frame_rate = args.framerate  # < rendering framerate
+    ## < simulation framerate. Needs to be multiple of framerate. Default 240
+    #breakpoint()
+    #scene.step_rate = 1*frame_rate  
+    #scene.frame_rate = framerate# < rendering framerate
+
+    scene = kb.Scene(resolution=IMG_SIZE[args.img_size],
+            frame_start=0, frame_end=args.n_frames,
+            frame_rate=frame_rate, step_rate=5*frame_rate)
     
-    # < simulation framerate. Needs to be multiple of framerate. Default 240
-    scene.step_rate = 100*args.framerate  
     
     if args.max_motion_blur != 0.0:
         motion_blur = rng.uniform(0, args.max_motion_blur)
-        #motion_blur = 0.1
     
     renderer = KubricBlender(scene,
             motion_blur=motion_blur,
@@ -59,12 +71,16 @@ def add_background(renderer, scene, args, rng, use_indoor=True):
     hdri_source = kb.AssetSource.from_manifest(args.hdri_assets) 
     background_names = list(hdri_source._assets.keys())
     hdri_id = rng.choice(INDOOR_BGS)
+    #hdri_id = rng.choice(["artist_workshop", 
+    #    "fireplace", 
+    #    "peppermint_powerplant", 
+    #    "photo_studio_loft_hall",
+    #    ])
     
     use_indoor = True
     if use_indoor:
         while hdri_id not in background_names:
-            #hdri_id = rng.choice(INDOOR_BGS)
-            hdri_id = rng.choice(["cayley_interior", "peppermint_powerplant"])
+            hdri_id = rng.choice(INDOOR_BGS)
     else:
         hdri_id = rng.choice(background_names)
     
@@ -74,9 +90,15 @@ def add_background(renderer, scene, args, rng, use_indoor=True):
     # Add Dome object
     kubasic = kb.AssetSource.from_manifest(args.kubasic_assets)
     dome = kubasic.create(asset_id="dome", name="dome", static=True, background=True,
-            scale=0.05)
+            scale=0.04,
+            #scale=0.05,
+            #scale=0.20,
+            )
+
     scene += dome
     #dome.scale = 0.01
+    print("Dome scale:",dome.scale)
+    print("object scale:",args.obj_scale)
     
     ## Set dome texture 
     dome_blender = dome.linked_objects[renderer]
@@ -91,21 +113,22 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
 
     compute_specular = lambda ior: ((ior - 1)/(ior + 1))**2/0.08
     # --- populate the scene with objects, lights, cameras
-    floor_x = 0.2
-    floor_y = 0.2
+    floor_x = 0.0
+    floor_y = 0.0
     #floor_x = args.obj_scale*100
     #floor_y = args.obj_scale*100
-    floor_z = 0.03
+    floor_z = 0.00
     #color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
     color_label, random_color = kb.randomness.sample_color("clevr", rng)
     ior = 1.3
 
-    floor_material = kb.PrincipledBSDFMaterial( 
-            color=random_color, metallic=0.1, roughness=0.8, 
-            ior=ior, specular=compute_specular(ior))
-    scene += kb.Cube(name="floor", static=True, 
-            scale=(floor_x, floor_y, floor_z), position=(0, 0, floor_z), 
-            material=floor_material)
+    #floor_material = kb.PrincipledBSDFMaterial( 
+    #        color=random_color, metallic=0.1, roughness=0.8, 
+    #        ior=ior, specular=compute_specular(ior))
+    ##floor_material = kb.Texture
+    #scene += kb.Cube(name="floor", static=True, 
+    #        scale=(floor_x, floor_y, floor_z), position=(0, 0, floor_z), 
+    #        material=floor_material)
     
     # --- generates objects randomly within a spawn region
     scene_name = args.scene_name
@@ -114,10 +137,10 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
     n_objects = args.n_objects
     #spawn_region = [[0, 0, 0], [floor_x, floor_y, 1]]
     #spawn_region = [[0, 0, floor_z+0.01], [0.1, 0.1, floor_z+0.4]]
-    spawn_region = [[0, 0, floor_z+0.01], [floor_x+0.1, floor_y+0.1, floor_z+0.4]]
+    spawn_region = [[0, 0, floor_z+0.01], [floor_x+0.2, floor_y+0.2, floor_z+0.2]]
     material_name = rng.choice([
         #"plastic",
-        #"metal",
+        "metal",
         "rubber",
         #"other"
         ])
@@ -137,7 +160,7 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
         if material_name == "metal":
             ior = 1.5
             specular = compute_specular(ior) 
-            new_obj.material = kb.PrincipledBSDFMaterial(color=random_color, metallic=1.0,
+            new_obj.material = kb.PrincipledBSDFMaterial(color=random_color, metallic=0.7,
                 roughness=0.2, ior=ior, specular=specular)
             new_obj.friction = 0.4
             new_obj.restitution = 0.3
@@ -174,7 +197,7 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
         scene += new_obj
         kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
 
-    scene.cam_lowest_z = floor_z+0.2
+    scene.cam_lowest_z = floor_z+0.1
 
 def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
     """
@@ -185,9 +208,12 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
         for details.
     """
 
+    # TODO DEPTH OF FIELD
+    # https://docs.blender.org/api/current/bpy.types.CameraDOFSettings.html
+
+    # Set camera to point to mean of object positions in each frame.
     obj_ids = animation.keys()
     cam_pos_array = np.zeros([args.n_frames+1, 3])
-    
     for obj in obj_ids:
         if not hasattr(obj, 'asset_id'): continue
         if obj.asset_id == 'dome': continue
@@ -201,14 +227,15 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
     
     #cam_lowest_z = floor_z+0.2
     cam_lowest_z = scene.cam_lowest_z
-    for frame in range(1, args.n_frames + 1):
+    for frame in range(scene.frame_start, scene.frame_end+1):
         # scene.camera.position = (1, 1, 1)  #< frozen camera
         pos = sample_point_in_half_sphere_shell(
-            inner_radius=0.1, outer_radius=0.6, rng=rng) # meters
-        pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
+            inner_radius=0.1, outer_radius=0.5, rng=rng) # meters
+        #pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
+        pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+0.5)
         scene.camera.position = pos
         #breakpoint()
-        scene.camera.look_at(cam_pos_array[frame-1])
+        scene.camera.look_at(cam_pos_array[frame])
         scene.camera.keyframe_insert("position", frame)
         scene.camera.keyframe_insert("quaternion", frame)
 
@@ -299,6 +326,16 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
     
     #print >> sys.stderr, str("Saved outputs to:", output_path)
 
+    from PIL import Image
+    print("Saving gif to:", output_path)
+    #import cv2
+    #imgs = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), mode='RGB') for frame in frames_dict['rgb']]
+    imgs = [Image.fromarray(frame) for frame in frames_dict['rgb']]
+    # duration is the number of milliseconds between frames; 
+    #imgs[0].save(output_path/'rgb.gif', save_all=True, append_images=imgs[1:], duration=int(1000/args.framerate), loop=0)
+    imgs[0].save(output_path/'rgb.gif', save_all=True, append_images=imgs[1:], duration=int(10000/scene.frame_rate), loop=0)
+    print("Done")
+
     return output_path
 
 def main(raw_args=None):
@@ -308,14 +345,18 @@ def main(raw_args=None):
     
     parser.add_argument('-s','--scene', dest='scene_name', default='robo_gears',
                         type=str, help='Scene name defined by assets/<scene_name>/<scene_name>.glb')
-    parser.add_argument('--framerate', dest='framerate', default='robo_gears',
-                        type=int, help='Scene name defined by assets/<scene_name>/<scene_name>.glb')
+    #parser.add_argument('--framerate', dest='framerate', default='robo_gears',
+    #                    type=int, help='Scene name defined by assets/<scene_name>/<scene_name>.glb')
     parser.add_argument('--n_objects', dest='n_objects', default=3,
                         type=int, help='Number of objects to render from scene')
     parser.add_argument('--n_frames', dest='n_frames', default=3,
                         type=int, help='Number of objects to render from scene')
     parser.add_argument('--size', dest='img_size', default='640',
                         type=str, help='')
+    parser.add_argument('--simulation_time', dest='simulation_time', default=5,
+                        type=int, help='')
+    parser.add_argument('--sim_step_multiplier', dest='sim_step', default=1,
+                        type=int, help='')
     parser.add_argument('--scale', dest='obj_scale', default=1.,
                         type=float, help='Scale of objects ing glb file.')
 
@@ -323,7 +364,7 @@ def main(raw_args=None):
     parser.add_argument("--camera", choices=["fixed_random", "linear_movement"],
                         default="fixed_random")
     parser.add_argument("--max_camera_movement", type=float, default=0.0)
-    parser.add_argument("--max_motion_blur", type=float, default=0.1)
+    parser.add_argument("--max_motion_blur", type=float, default=0.05)
     
     # Configuration for the source of the assets
     parser.add_argument("--kubasic_assets", type=str,
@@ -337,20 +378,27 @@ def main(raw_args=None):
 
     rng = np.random.default_rng()
 
-    simulator, renderer, scene = get_simulator_renderer(args=args, rng=rng)
+    print("Initializing simulator.")
+    simulator, renderer, scene = get_simulator_renderer(args=args, rng=rng,
+        adaptive_sampling=True, use_denoising=True, background_transparency=False)
     scene.scene_name = args.scene_name
+    print("Adding background.")
     add_background(renderer=renderer, args=args, scene=scene, use_indoor=True, rng=rng)
+    print("Populating scene.")
     populate_scene(scene=scene, simulator=simulator, 
             rng=rng, args=args, scene_name=args.scene_name)
 
     # --- executes the simulation (and store keyframes)
+    print("Simulating.")
     animation, collisions = simulator.run()
 
-    print(scene.scene_name)
+    print("Rendering keyframes.")
     store_keyframes(animation=animation, args=args, renderer=renderer,
             scene=scene, to_BOP=True, rng=rng)
 
     kb.done()
+
+    #https://stackoverflow.com/questions/44734858/python-calling-a-module-that-uses-argparser
 
 # Run with command line arguments precisely when called directly
 # (rather than when imported)
