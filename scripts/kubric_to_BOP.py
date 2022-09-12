@@ -57,10 +57,17 @@ def extract_frame_data(instance, frame_range: range, scene,
         with instance.at_frame(frame):
             R = tritrans.quaternion_matrix(instance.quaternion)[:3,:3]
             object_gt = {
-                    "cam_R_m2w": R.tolist(),
-                    "cam_t_m2w": instance.position.tolist(),
-                    "cam_R_m2c": (cam_R.dot(R.T)).tolist(),
-                    "cam_t_m2c": (cam_t - instance.position).tolist(),
+                    "cam_R_w2m": R.tolist(),
+                    "cam_t_w2m": instance.position.tolist(),
+
+                    #"cam_R_c2m": (cam_R.dot(R.T)).tolist(),
+                    #"cam_t_c2m": (cam_t - instance.position).tolist(),
+                    "cam_R_c2m": (cam_R.T.dot(R)).tolist(),
+                    "cam_t_c2m": (cam_R.T.dot((-cam_t + instance.position))).tolist(),
+                    #"cam_t_c2m": (((cam_R.T).T).dot(cam_t)).tolist(), # Analyze with cam_R_c2m
+
+                    #"cam_R_m2c": (R.dot(cam_R.T).tolist(),
+                    #"cam_t_m2c": (cam_t - instance.position).tolist(),
                     "obj_id": instance.asset_id,
                     #"image_positions": np.array([scene.camera.project_point(point3d=p, frame=f)[:2]
                     #        for f, p in zip(frame_range, info["positions"])], dtype=np.float32),

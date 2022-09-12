@@ -93,6 +93,7 @@ def add_background(renderer, scene, args, rng, use_indoor=True):
             scale=0.04,
             #scale=0.05,
             #scale=0.20,
+            position=[0.0,0.0,-0.01]
             )
 
     scene += dome
@@ -147,10 +148,16 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
     
     for i in range(n_objects):
         #velocity = rng.uniform([-1, -1, 0], [1, 1, 0])
-        new_obj = obj_source.create(asset_id=asset_names[rng.integers(0,len(asset_names))],
+        #angular_velocity = rng.uniform([0, 0, 0], [10, 10, 10])
+        angular_velocity = [0, 20, 20]
+        #new_obj = obj_source.create(asset_id=asset_names[rng.integers(0,len(asset_names))],
+        new_obj = obj_source.create(asset_id="Top_casing",
                 #velocity=velocity,
+                angular_velocity = angular_velocity,
                 scale=np.ones(3)*args.obj_scale
                 )
+
+
         obj_scale = np.linalg.norm(new_obj.aabbox[1] - new_obj.aabbox[0])
         #color_label, random_color = kb.randomness.sample_color("uniform_hue", rng)
         color_label, random_color = kb.randomness.sample_color("clevr", rng)
@@ -195,7 +202,8 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
             new_obj.mass *= 1.1 * size**3
     
         scene += new_obj
-        kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
+        new_obj.position = np.array([0, 0, 0.3])
+        #kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
 
     scene.cam_lowest_z = floor_z+0.1
 
@@ -213,10 +221,12 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
 
     # Set camera to point to mean of object positions in each frame.
     obj_ids = animation.keys()
+    obj_names = []
     cam_pos_array = np.zeros([args.n_frames+1, 3])
     for obj in obj_ids:
         if not hasattr(obj, 'asset_id'): continue
         if obj.asset_id == 'dome': continue
+        obj_names.append(obj.asset_id)
         cam_pos_array = cam_pos_array + np.array(animation[obj]["position"])
     cam_pos_array = cam_pos_array / len(obj_ids)
 
@@ -231,10 +241,10 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
         # scene.camera.position = (1, 1, 1)  #< frozen camera
         pos = sample_point_in_half_sphere_shell(
             inner_radius=0.1, outer_radius=0.5, rng=rng) # meters
-        #pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+1.0)
+
         pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+0.5)
-        scene.camera.position = pos
-        #breakpoint()
+        #scene.camera.position = pos
+        scene.camera.position = np.array([0, -1, 1])
         scene.camera.look_at(cam_pos_array[frame])
         scene.camera.keyframe_insert("position", frame)
         scene.camera.keyframe_insert("quaternion", frame)
@@ -318,6 +328,7 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
         "camera": kb.get_camera_info(scene.camera),
         "instances": kb.get_instance_info(scene, visible_foreground_assets),
         "background": scene.background_name,
+        "obj_ids": obj_names,
     })
     #kb.write_json(filename=output_path / "events.json", data={
     #    "collisions":  kb.process_collisions(
@@ -332,8 +343,7 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
     #imgs = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), mode='RGB') for frame in frames_dict['rgb']]
     imgs = [Image.fromarray(frame) for frame in frames_dict['rgb']]
     # duration is the number of milliseconds between frames; 
-    #imgs[0].save(output_path/'rgb.gif', save_all=True, append_images=imgs[1:], duration=int(1000/args.framerate), loop=0)
-    imgs[0].save(output_path/'rgb.gif', save_all=True, append_images=imgs[1:], duration=int(10000/scene.frame_rate), loop=0)
+    imgs[0].save(output_path/'rgb.gif', save_all=True, append_images=imgs[1:], duration=int(1000/scene.frame_rate), loop=0)
     print("Done")
 
     return output_path
