@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from pathlib import Path
 import logging
 import bpy
@@ -228,12 +229,11 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
         if obj.asset_id == 'dome': continue
         obj_names.append(obj.asset_id)
         cam_pos_array = cam_pos_array + np.array(animation[obj]["position"])
-    cam_pos_array = cam_pos_array / len(obj_ids)
+    cam_pos_array = cam_pos_array / len(obj_names)
+    print(cam_pos_array)
 
     # --- Keyframe the camera
-    scene.camera = kb.PerspectiveCamera(name='camera',
-                #focal_length=5., sensor_width=8,
-                )
+    scene.camera = kb.PerspectiveCamera(name='camera')
     
     #cam_lowest_z = floor_z+0.2
     cam_lowest_z = scene.cam_lowest_z
@@ -243,8 +243,8 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
             inner_radius=0.1, outer_radius=0.5, rng=rng) # meters
 
         pos[-1] = rng.uniform(cam_lowest_z,cam_lowest_z+0.5)
-        #scene.camera.position = pos
-        scene.camera.position = np.array([0, -1, 1])
+        scene.camera.position = pos
+        #scene.camera.position = np.array([0+frame, -0.5, 0.5])
         scene.camera.look_at(cam_pos_array[frame])
         scene.camera.keyframe_insert("position", frame)
         scene.camera.keyframe_insert("quaternion", frame)
@@ -296,12 +296,11 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
     kb_to_bop.compute_bboxes(frames_dict["segmentation"],
             visible_foreground_assets)
     
-    #np.save(output_path/'data_masks', frames_dict['segmentation'])
+    #np.save(output_path/'data_masks', frames_dict['segmentation']) 
     
     # --- Output BOP style
     to_BOP = True
     if to_BOP:
-        import json
         gt, gt_info = kb_to_bop.get_BOP_info(scene=scene, assets_subset=visible_foreground_assets)
         with open(output_path/"scene_gt.json", 'w') as f:
             json.dump(gt, f, indent=4)

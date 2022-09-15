@@ -39,6 +39,7 @@ def extract_frame_data(instance, frame_range: range, scene,
         gt_frames_data [dict{rotation, translation}]: object pose per frame as list of dicts
         gt_info_frames_data [dict{bbox, ***}]: object bbox data per frame as list of dicts
     """
+    import bpy
 
     info = copy.copy(instance.metadata)
     assert len(info['bboxes']) == len(frame_range)
@@ -54,17 +55,65 @@ def extract_frame_data(instance, frame_range: range, scene,
             cam_t = scene.camera.position
             cam_R = tritrans.quaternion_matrix(
                     scene.camera.quaternion)[:3,:3]
+
+            # Points as rows, world matrix columns are subspace axis.
+            # Map from world coordinates to camera coordinates.
+            """
+            W = [
+                [Rxx, Rxy, Rxz, Tx]
+                [Ryx, Ryy, Ryz, Ty]
+                [Rzx, Rzy, Rzz, Tz]
+                [0,   0,   0,   1 ]
+                ]
+            """
+            W_inv = np.linalg.inv(scene.camera.matrix_world) 
+            #print("cam world:", scene.camera.matrix_world)
+            #print("Cam_POS:", scene.camera.position)
+            #print("homo:", W_inv)
+
+            assert len(W_inv.shape) == 2 and W_inv.shape[0] == 4 and W_inv.shape[1] == 4
+
         with instance.at_frame(frame):
+
             R = tritrans.quaternion_matrix(instance.quaternion)[:3,:3]
+
+            # TODO
+            # Can't get change in camera pose for this one. 
+            # Only estimates with final cam pose.
+            #cam = bpy.data.objects['camera']
+            #model_pose_cam_local = np.array(
+            #        cam.convert_space(matrix=instance.matrix_world, to_space='LOCAL'))
+            #print("LOCAL")
+            #print(model_pose_cam_local)
+
+            # A circumvention of the above problem.
+            # Map object world pose to camera coordinates.
+            obj_pose = np.eye(4, dtype=float)
+            obj_pose[:3,:3] = R
+            obj_pose[:3,3] = instance.position
+            obj_in_cam_coords = W_inv @ obj_pose
+
+            #print("OLD T:", cam_R.T.dot((-cam_t + instance.position)))
+            #print("NEW T:", obj_in_cam_coords[:3,3])
+            #print("OLD R:", cam_R.T.dot(R))
+            #print("NEW R:", obj_in_cam_coords[:3,:3])
+
             object_gt = {
                     "cam_R_w2m": R.tolist(),
                     "cam_t_w2m": instance.position.tolist(),
 
-                    #"cam_R_c2m": (cam_R.dot(R.T)).tolist(),
-                    #"cam_t_c2m": (cam_t - instance.position).tolist(),
-                    "cam_R_c2m": (cam_R.T.dot(R)).tolist(),
-                    "cam_t_c2m": (cam_R.T.dot((-cam_t + instance.position))).tolist(),
-                    #"cam_t_c2m": (((cam_R.T).T).dot(cam_t)).tolist(), # Analyze with cam_R_c2m
+                    #"cam_R_c2m": (model_pose_cam_local[:3,:3]).tolist(),
+                    #"cam_t_c2m": (model_pose_cam_local[3,:3]).tolist(),
+
+
+                    # Both 3x3 and 4x4 transformations produce same results.
+                    # Mapping with 4x4 transformation and homogenours coords.
+                    "cam_R_m2c": (obj_in_cam_coords[:3,:3]).tolist(),
+                    "cam_t_m2c": (obj_in_cam_coords[:3,3]).tolist(),
+                    
+                    # Mapping with 3x3 transformation
+                    #"cam_R_m2c": (cam_R.T.dot(R)).tolist(), # Rotation is right
+                    #"cam_t_m2c": (cam_R.T.dot((-cam_t + instance.position))).tolist(),
 
                     #"cam_R_m2c": (R.dot(cam_R.T).tolist(),
                     #"cam_t_m2c": (cam_t - instance.position).tolist(),

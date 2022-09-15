@@ -38,6 +38,25 @@ URDF_TEMPLATE = """
 </robot>
 """
 
+def trimesh_to_blender(pts):
+    """
+    Trimesh flips z and y during loading. Flip them back for storage.
+    """
+
+    #if type(pts) is not tm.Trimesh: 
+    #    raise ValueError("Expected type:", np.array, "found: ", type(pts))
+
+    dim = pts.shape
+    if len(dim) != 2 and dim[-1] != 3:
+        raise ValueError("Shape {dim} does not match expected (N, 3)")
+
+    T = np.array([
+        [1, 0, 0],
+        [0, 0, 1],
+        [0, -1, 0],
+        ])
+    return pts.dot(T)
+
 def get_object_properties(tmesh, density=10.0):
 
   properties = {
@@ -70,12 +89,21 @@ def create_objects_from_gltf(scene_dir):
         return None
 
 #scene = tm.load(scene_dir/scene_name/".gltf")
-    scene = tm.load(scene_dir/(scene_dir.name+file_type))
+    scene = tm.load(scene_dir/(scene_dir.name+file_type), process=False)
+    #scene = tm.load(scene_dir/(scene_dir.name+file_type))
     object_names = list(scene.geometry)
     geometries = list(scene.geometry.values())
     assets_list = []
     for object_name, geometry in zip(object_names, geometries):
         assert type(geometry) == tm.Trimesh
+
+        print(object_name)
+        if object_name == "Top_casing":
+            print(object_name)
+            print(geometry.vertices)
+            geometry.vertices = trimesh_to_blender(geometry.vertices)
+            print(geometry.vertices)
+            breakpoint()
 
         object_mesh_path= scene_dir / object_name / (object_name+".obj")
         urdf_path = scene_dir/object_name/(object_name+".urdf")
