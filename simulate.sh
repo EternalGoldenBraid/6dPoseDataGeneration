@@ -5,8 +5,8 @@ else
   scene_name=$1
 
   n_frames=3
-  n_objects=2
-  img_size=64
+  n_objects=4
+  img_size=640
   simulation_time=3
 
   #n_frames=200

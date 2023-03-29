@@ -29,13 +29,13 @@ INDOOR_BGS = [
 #"glass_passage"
 ]
 
+IMG_SIZE = {'640': (640,480), '256': (256,256), '64': (64, 64)}
 
 def get_simulator_renderer(args, rng, 
         use_denoising=True, 
         adaptive_sampling=True,
         background_transparency=False):
 
-    IMG_SIZE = {'640': (640,480), '256': (256,256), '64': (64, 64)}
 
     # --- create scene and attach a renderer and simulator
     
@@ -137,6 +137,7 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
     obj_source = kb.AssetSource.from_manifest(manifest_path=f"{scene_name}_manifest.json")
     asset_names = list(obj_source._assets.keys())
     n_objects = args.n_objects
+    added_asset_names: List[str] = ["" for n in range(n_objects)]
     #spawn_region = [[0, 0, 0], [floor_x, floor_y, 1]]
     #spawn_region = [[0, 0, floor_z+0.01], [0.1, 0.1, floor_z+0.4]]
     spawn_region = [[0, 0, floor_z+0.01], [floor_x+0.2, floor_y+0.2, floor_z+0.2]]
@@ -148,11 +149,14 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
         ])
     
     for i in range(n_objects):
+        name = asset_names[rng.integers(0,len(asset_names))]
+        added_asset_names[i] = name
+
         #velocity = rng.uniform([-1, -1, 0], [1, 1, 0])
         #angular_velocity = rng.uniform([0, 0, 0], [10, 10, 10])
         angular_velocity = [0, 20, 20]
-        #new_obj = obj_source.create(asset_id=asset_names[rng.integers(0,len(asset_names))],
-        new_obj = obj_source.create(asset_id="Top_casing",
+        #new_obj = obj_source.create(asset_id="Top_casing",
+        new_obj = obj_source.create(asset_id=name,
                 #velocity=velocity,
                 angular_velocity = angular_velocity,
                 scale=np.ones(3)*args.obj_scale
@@ -207,8 +211,10 @@ def populate_scene(scene, simulator, rng, args, scene_name="robo_gears"):
         #kb.move_until_no_overlap(new_obj, simulator, spawn_region=spawn_region)
 
     scene.cam_lowest_z = floor_z+0.1
+    print("Added objects named:", added_asset_names)
 
-def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
+
+def store_keyframes(animation, args, rng, scene, renderer, img_size, to_BOP=True):
     """
     Keyframe the camera based on simulated animation and save
     results to disk.
@@ -308,10 +314,33 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
             json.dump(gt_info, f, indent=4)
         
         cam_info = kb.get_camera_info(scene.camera)
+
+        ### During debugging found that kubric defines K[2,2] = -1
+        # and (cx_bop, cy_bop) = (cx_kb+0.5, cy_kb+0.5)
+        # TODO Confirm the above is true.
+
+        K_kb = cam_info['K']
+        K_bop = K_kb.copy()
+        K_bop[0,0] = K_bop[0,0]*img_size[0]
+        K_bop[1,1] = -1*K_bop[1,1]*img_size[1]
+        K_bop[0,2] = -1*(K_bop[0,2])*img_size[0]
+        K_bop[1,2] = -1*(K_bop[1,2])*img_size[1]
+        K_bop[2,2] = 1
+
+        #K_bop[0,2] = K_bop[0,2] + 0.5
+        #K_bop[1,2] = K_bop[1,2] + 0.5
+        #K_bop[0,2] = K_bop[0,2] + 1.0
+        #K_bop[1,2] = K_bop[1,2] + 1.0
         scene_camera = {}
         depth_scale = 1.0 # TODO Where is this?
         for frame in list(gt.keys()):
-            scene_camera[frame] = {'cam_K': cam_info['K'].tolist(), 'depth_scale': depth_scale}
+
+
+            scene_camera[frame] = {
+                    #'cam_K': cam_info['K'].tolist(), # In kubric intrinsics format.
+                    'cam_K': K_bop.tolist(),
+                    'cam_K_kubric': K_kb.tolist(),
+                    'depth_scale': depth_scale}
     
         with open(output_path/'scene_camera.json', 'w') as f:
             json.dump(scene_camera, f, indent=4)
@@ -325,6 +354,7 @@ def store_keyframes(animation, args, rng, scene, renderer, to_BOP=True):
         "flags": vars(args),
         "metadata": kb.get_scene_metadata(scene),
         "camera": kb.get_camera_info(scene.camera),
+        "cam_K": K_bop.tolist(),
         "instances": kb.get_instance_info(scene, visible_foreground_assets),
         "background": scene.background_name,
         "obj_ids": obj_names,
@@ -383,6 +413,8 @@ def main(raw_args=None):
     
     args = parser.parse_args()
 
+    img_size = IMG_SIZE[args.img_size]
+
     logging.basicConfig(level="INFO")  # < CRITICAL, ERROR, WARNING, INFO, DEBUG
 
     rng = np.random.default_rng()
@@ -403,7 +435,7 @@ def main(raw_args=None):
 
     print("Rendering keyframes.")
     store_keyframes(animation=animation, args=args, renderer=renderer,
-            scene=scene, to_BOP=True, rng=rng)
+            scene=scene, to_BOP=True, rng=rng, img_size=img_size)
 
     kb.done()
 

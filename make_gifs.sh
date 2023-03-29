@@ -33,7 +33,7 @@ else
     echo "Converting from: $(ls $data_path/$id/rgb/rgb_*.png)"
     echo "To: $data_path/$id/rgb.gif"
     echo
-    convert -delay 100 -loop 0 $data_path/$id/rgb/rgb_*.png $data_path/$id/rgb.gif
+    convert -delay 50 -loop 0 $data_path/$id/rgb/rgb_*.png $data_path/$id/rgb.gif
 
   done
 fi

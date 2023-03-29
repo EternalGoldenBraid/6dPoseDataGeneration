@@ -29,8 +29,6 @@ def compute_bboxes(segmentation: ArrayLike, asset_list: Sequence[core.Asset]):
                 asset.metadata["bboxes"].append((-1, -1, -1, -1))
                 asset.metadata["bbox_frames"].append(t)
 
-
-
 def extract_frame_data(instance, frame_range: range, scene,
         image_shape: (int, int) = (640,480)):
     """
@@ -98,18 +96,23 @@ def extract_frame_data(instance, frame_range: range, scene,
             #print("OLD R:", cam_R.T.dot(R))
             #print("NEW R:", obj_in_cam_coords[:3,:3])
 
+            ### Coordinate transformation from kubric camera frame to BOP camera frame.
+            kub_2_bop_frame = np.array([
+                [ 1,  0,  0],
+                [ 0, -1,  0],
+                [ 0,  0, -1],
+            ], dtype=np.float32)
+
             object_gt = {
                     "cam_R_w2m": R.tolist(),
                     "cam_t_w2m": instance.position.tolist(),
 
-                    #"cam_R_c2m": (model_pose_cam_local[:3,:3]).tolist(),
-                    #"cam_t_c2m": (model_pose_cam_local[3,:3]).tolist(),
-
-
                     # Both 3x3 and 4x4 transformations produce same results.
                     # Mapping with 4x4 transformation and homogenours coords.
-                    "cam_R_m2c": (obj_in_cam_coords[:3,:3]).tolist(),
-                    "cam_t_m2c": (obj_in_cam_coords[:3,3]).tolist(),
+                    "cam_R_m2c": (kub_2_bop_frame @ obj_in_cam_coords[:3,:3]).tolist(),
+                    "cam_t_m2c": (kub_2_bop_frame @ obj_in_cam_coords[:3,3]).tolist(),
+                    #"cam_R_m2c": (obj_in_cam_coords[:3,:3]).tolist(),
+                    #"cam_t_m2c": (obj_in_cam_coords[:3,3]).tolist(),
                     
                     # Mapping with 3x3 transformation
                     #"cam_R_m2c": (cam_R.T.dot(R)).tolist(), # Rotation is right
